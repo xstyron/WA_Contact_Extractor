@@ -42,6 +42,13 @@
     return null;
   }
 
+  function resolveBool(val) {
+    if (typeof val === "function") {
+      try { return !!val(); } catch (_) { return false; }
+    }
+    return !!val;
+  }
+
   // ── Helper: Read IndexedDB Store ──────────────────────────────────────────
   function readStoreData(db, storeName) {
     return new Promise((resolve) => {
@@ -93,6 +100,27 @@
               return;
             }
 
+            console.log(`[WA Extractor] Retrieved from DB ${dbName}: ${contacts.length} contacts, ${chats.length} chats, ${groupMetadata.length} group metadata`);
+
+            if (contacts.length) {
+              console.log("[WA Extractor Debug] First contact keys:", Object.keys(contacts[0]));
+              console.log("[WA Extractor Debug] First contact sample:", JSON.stringify(contacts[0]).slice(0, 300));
+            }
+            if (chats.length) {
+              console.log("[WA Extractor Debug] First chat keys:", Object.keys(chats[0]));
+              console.log("[WA Extractor Debug] First chat sample:", JSON.stringify(chats[0]).slice(0, 300));
+            }
+            if (groupMetadata.length) {
+              console.log("[WA Extractor Debug] First groupMetadata keys:", Object.keys(groupMetadata[0]));
+              console.log("[WA Extractor Debug] First groupMetadata sample:", JSON.stringify(groupMetadata[0]).slice(0, 300));
+            }
+
+            if (!contacts.length) {
+              db.close();
+              resolve(null);
+              return;
+            }
+
             const contactMap = {};
             for (const c of contacts) {
               if (!c) continue;
@@ -107,16 +135,20 @@
                 name: c.name || c.pushname || c.displayName || c.verifiedName || c.formattedName || rawNum,
                 number: cleanNumber(rawNum),
                 rawNumber: rawNum,
-                isBlocked: !!(c.isBlocked || c.blocked),
-                isBusiness: !!c.isBusiness,
-                isMyContact: !!c.isMyContact,
+                isBlocked: resolveBool(c.isBlocked) || resolveBool(c.blocked),
+                isBusiness: resolveBool(c.isBusiness) || resolveBool(c.isSmb) || !!c.verifiedName || resolveBool(c.isBusinessContact),
+                isMyContact: resolveBool(c.isMyContact) || resolveBool(c.isContact) || resolveBool(c.isAddressBookContact) || resolveBool(c.inAddressBook),
                 groups: []
               };
             }
 
             // Map groups from chats
             if (chats.length) {
-              const groupChats = chats.filter(ch => ch && (ch.id || "").endsWith("@g.us"));
+              const groupChats = chats.filter(ch => {
+                if (!ch) return false;
+                const cid = parseJID(ch);
+                return cid && cid.endsWith("@g.us");
+              });
               for (const chat of groupChats) {
                 const groupName = chat.name || chat.formattedTitle || chat.subject || "Unnamed Group";
                 const participants = chat.groupMetadata?.participants || chat.participants || [];
@@ -213,9 +245,11 @@
     return false;
   }
   function looksLikeChat(obj) {
-    const s = obj?.id?._serialized || (typeof obj?.id === "string" ? obj.id : "");
-    return (s.endsWith("@c.us") || s.endsWith("@g.us")) &&
-           (typeof obj.t === "number" || typeof obj.unreadCount === "number");
+    if (!obj || typeof obj !== "object") return false;
+    const s = parseJID(obj);
+    if (!s) return false;
+    if (!s.endsWith("@c.us") && !s.endsWith("@g.us")) return false;
+    return "unreadCount" in obj || "t" in obj || "timestamp" in obj || "muteExpiration" in obj;
   }
 
   // ── STRATEGY 1: Webpack Require ───────────────────────────────────────────
@@ -286,9 +320,9 @@
                 name: c.name || c.pushname || c.notify || c.verifiedName || rawNum,
                 number: cleanNumber(rawNum),
                 rawNumber: rawNum,
-                isBlocked: !!(c.isBlocked || c.blocked),
-                isBusiness: !!c.isBusiness,
-                isMyContact: !!c.isMyContact,
+                isBlocked: resolveBool(c.isBlocked) || resolveBool(c.blocked),
+                isBusiness: resolveBool(c.isBusiness) || resolveBool(c.isSmb) || !!c.verifiedName || resolveBool(c.isBusinessContact),
+                isMyContact: resolveBool(c.isMyContact) || resolveBool(c.isContact) || resolveBool(c.isAddressBookContact) || resolveBool(c.inAddressBook),
                 groups: [],
               };
             } catch (_) {}
@@ -297,7 +331,7 @@
         if (sample.some(looksLikeChat)) {
           for (const ch of arr) {
             try {
-              const s = ch.id?._serialized || "";
+              const s = parseJID(ch) || "";
               if (!s.endsWith("@g.us")) continue;
               chatMap[s] = { name: ch.name || ch.formattedTitle || "Unnamed Group", chat: ch };
             } catch (_) {}
@@ -424,8 +458,10 @@
                 contactMap[serial] = {
                   id: serial, name: c.name || c.pushname || c.notify || c.verifiedName || rawNum,
                   number: cleanNumber(rawNum), rawNumber: rawNum,
-                  isBlocked: !!(c.isBlocked || c.blocked), isBusiness: !!c.isBusiness,
-                  isMyContact: !!c.isMyContact, groups: [],
+                  isBlocked: resolveBool(c.isBlocked) || resolveBool(c.blocked),
+                  isBusiness: resolveBool(c.isBusiness) || resolveBool(c.isSmb) || !!c.verifiedName || resolveBool(c.isBusinessContact),
+                  isMyContact: resolveBool(c.isMyContact) || resolveBool(c.isContact) || resolveBool(c.isAddressBookContact) || resolveBool(c.inAddressBook),
+                  groups: [],
                 };
               } catch (_) {}
             }
