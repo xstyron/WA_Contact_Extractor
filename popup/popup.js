@@ -64,6 +64,12 @@ function bindEvents() {
     }, 250);
   });
 
+  // Group select dropdown change
+  $("groupSelect").addEventListener("change", () => {
+    currentPage = 0;
+    applyFilters();
+  });
+
   // Filter chips
   document.querySelectorAll(".chip").forEach(chip => {
     chip.addEventListener("click", () => {
@@ -169,6 +175,27 @@ function renderResults() {
   $("statBlocked").textContent  = fmt(blocked);
   $("statBusiness").textContent = fmt(business);
 
+  // Populate groups dropdown dynamically
+  const groupSelect = $("groupSelect");
+  if (groupSelect) {
+    groupSelect.innerHTML = '<option value="">All Groups</option>';
+    const uniqueGroups = new Set();
+    allContacts.forEach(c => {
+      if (c.groups && Array.isArray(c.groups)) {
+        c.groups.forEach(g => {
+          if (g) uniqueGroups.add(g);
+        });
+      }
+    });
+    const sortedGroups = Array.from(uniqueGroups).sort((a, b) => a.localeCompare(b));
+    sortedGroups.forEach(groupName => {
+      const opt = document.createElement("option");
+      opt.value = groupName;
+      opt.textContent = groupName;
+      groupSelect.appendChild(opt);
+    });
+  }
+
   currentFilter = "all";
   document.querySelectorAll(".chip").forEach(c => c.classList.remove("chip-active"));
   $("filterAll").classList.add("chip-active");
@@ -178,6 +205,8 @@ function renderResults() {
 function applyFilters() {
   const query = $("searchInput").value.trim().toLowerCase();
 
+  const selectedGroup = $("groupSelect")?.value || "";
+
   filteredContacts = allContacts.filter(contact => {
     if (query) {
       const nameMatch  = contact.name?.toLowerCase().includes(query);
@@ -185,6 +214,11 @@ function applyFilters() {
       const groupMatch = contact.groups?.some(g => g.toLowerCase().includes(query));
       if (!nameMatch && !numMatch && !groupMatch) return false;
     }
+    
+    if (selectedGroup) {
+      if (!contact.groups || !contact.groups.includes(selectedGroup)) return false;
+    }
+
     switch (currentFilter) {
       case "blocked":  return contact.isBlocked;
       case "groups":   return contact.groups?.length > 0;
@@ -287,8 +321,12 @@ function buildRow(contact) {
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 function exportContacts(format) {
-  // Always export all filtered contacts (not just the visible page)
-  const toExport = filteredContacts.length > 0 ? filteredContacts : allContacts;
+  // Respect filters: export only filtered set if search, group select, or status chip is active
+  const hasActiveFilters = $("searchInput").value.trim() !== "" || 
+                           $("groupSelect").value !== "" || 
+                           currentFilter !== "all";
+  
+  const toExport = hasActiveFilters ? filteredContacts : allContacts;
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 
   if (format === "json") {

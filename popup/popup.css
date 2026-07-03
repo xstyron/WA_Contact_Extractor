@@ -553,6 +553,29 @@ html, body {
   min-height: 14px;
 }
 
+/* ── Group Selector ───────────────────────────────────────────────────────── */
+.group-select-wrap {
+  width: 100%;
+}
+.group-select {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.group-select:focus { border-color: var(--border-glow); }
+.group-select option {
+  background: var(--bg-card2);
+  color: var(--text-primary);
+}
+
 /* ── Animations ───────────────────────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
