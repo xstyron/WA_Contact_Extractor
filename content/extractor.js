@@ -20,6 +20,12 @@
   }
   function yieldToMain() { return new Promise(r => setTimeout(r, 0)); }
 
+  function cleanNumber(rawNum) {
+    if (!rawNum) return "";
+    const digits = rawNum.replace(/\D/g, "");
+    return digits.length >= 10 ? digits.slice(-10) : digits;
+  }
+
   // ── Helper: Read IndexedDB Store ──────────────────────────────────────────
   function readStoreData(db, storeName) {
     return new Promise((resolve) => {
@@ -92,7 +98,7 @@
               contactMap[serial] = {
                 id: serial,
                 name: c.name || c.pushname || c.displayName || c.verifiedName || c.formattedName || rawNum,
-                number: "+" + rawNum.replace(/\D/g, ""),
+                number: cleanNumber(rawNum),
                 rawNumber: rawNum,
                 isBlocked: !!(c.isBlocked || c.blocked),
                 isBusiness: !!c.isBusiness,
@@ -281,7 +287,7 @@
               contactMap[serial] = {
                 id: serial,
                 name: c.name || c.pushname || c.notify || c.verifiedName || rawNum,
-                number: "+" + rawNum.replace(/\D/g, ""),
+                number: cleanNumber(rawNum),
                 rawNumber: rawNum,
                 isBlocked: !!(c.isBlocked || c.blocked),
                 isBusiness: !!c.isBusiness,
@@ -420,7 +426,7 @@
                 if (!rawNum || rawNum.length < 5) continue;
                 contactMap[serial] = {
                   id: serial, name: c.name || c.pushname || c.notify || c.verifiedName || rawNum,
-                  number: "+" + rawNum.replace(/\D/g, ""), rawNumber: rawNum,
+                  number: cleanNumber(rawNum), rawNumber: rawNum,
                   isBlocked: !!(c.isBlocked || c.blocked), isBusiness: !!c.isBusiness,
                   isMyContact: !!c.isMyContact, groups: [],
                 };
