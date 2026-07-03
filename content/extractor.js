@@ -26,6 +26,22 @@
     return digits.length >= 10 ? digits.slice(-10) : digits;
   }
 
+  function parseJID(p) {
+    if (!p) return null;
+    if (typeof p === "string") return p;
+    if (typeof p === "object") {
+      const idVal = p.id || p.jid || p.key?.remoteJid;
+      if (idVal) {
+        if (typeof idVal === "string") return idVal;
+        if (typeof idVal === "object" && idVal._serialized) return idVal._serialized;
+        if (typeof idVal === "object" && idVal.user && idVal.server) return `${idVal.user}@${idVal.server}`;
+      }
+      if (p._serialized) return p._serialized;
+      if (p.user && p.server) return `${p.user}@${p.server}`;
+    }
+    return null;
+  }
+
   // ── Helper: Read IndexedDB Store ──────────────────────────────────────────
   function readStoreData(db, storeName) {
     return new Promise((resolve) => {
@@ -80,16 +96,7 @@
             const contactMap = {};
             for (const c of contacts) {
               if (!c) continue;
-              let serial = null;
-              if (typeof c === 'string') {
-                serial = c;
-              } else if (c.id) {
-                serial = typeof c.id === 'object' ? c.id?._serialized : c.id;
-              } else if (c.jid) {
-                serial = c.jid;
-              } else if (c.key?.remoteJid) {
-                serial = c.key.remoteJid;
-              }
+              const serial = parseJID(c);
 
               if (!serial || serial.endsWith("@g.us") || serial.includes("@broadcast")) continue;
               const rawNum = serial.split("@")[0];
@@ -115,12 +122,7 @@
                 const participants = chat.groupMetadata?.participants || chat.participants || [];
                 const partsList = Array.isArray(participants) ? participants : [];
                 for (const p of partsList) {
-                  let pid = null;
-                  if (typeof p === 'string') {
-                    pid = p;
-                  } else if (p && typeof p === 'object') {
-                    pid = p.id || p.jid || p.key?.remoteJid || (typeof p.id === 'object' ? p.id?._serialized : null);
-                  }
+                  const pid = parseJID(p);
                   if (pid && contactMap[pid]) {
                     if (!contactMap[pid].groups.includes(groupName)) {
                       contactMap[pid].groups.push(groupName);
@@ -134,12 +136,12 @@
             if (groupMetadata.length) {
               for (const g of groupMetadata) {
                 if (!g) continue;
-                const gid = g.id || g.jid || (typeof g.id === 'object' ? g.id?._serialized : null);
+                const gid = parseJID(g);
                 if (!gid || !gid.endsWith("@g.us")) continue;
 
                 let groupName = "Unnamed Group";
                 if (chats.length) {
-                  const foundChat = chats.find(c => c && (c.id === gid || c.id?._serialized === gid));
+                  const foundChat = chats.find(c => c && (c.id === gid || c.id?._serialized === gid || parseJID(c) === gid));
                   if (foundChat) {
                     groupName = foundChat.name || foundChat.formattedTitle || foundChat.subject || groupName;
                   }
@@ -147,12 +149,7 @@
 
                 const participants = g.participants || [];
                 for (const p of participants) {
-                  let pid = null;
-                  if (typeof p === 'string') {
-                    pid = p;
-                  } else if (p && typeof p === 'object') {
-                    pid = p.id || p.jid || p.key?.remoteJid || (typeof p.id === 'object' ? p.id?._serialized : null);
-                  }
+                  const pid = parseJID(p);
                   if (pid && contactMap[pid]) {
                     if (!contactMap[pid].groups.includes(groupName)) {
                       contactMap[pid].groups.push(groupName);
@@ -280,7 +277,7 @@
         if (sample.some(looksLikeContact)) {
           for (const c of arr) {
             try {
-              const serial = c.id?._serialized || (typeof c.id === "string" ? c.id : null);
+              const serial = parseJID(c);
               if (!serial || serial.endsWith("@g.us") || serial.includes("@broadcast")) continue;
               const rawNum = c.id?.user || serial.split("@")[0];
               if (!rawNum || rawNum.length < 5) continue;
@@ -361,7 +358,7 @@
         const parts = getModels(meta.participants) ||
                       Array.from(meta.participants?.models || meta.participants || []);
         for (const p of parts) {
-          const pid = p.id?._serialized || (typeof p.id === "string" ? p.id : null);
+          const pid = parseJID(p);
           if (!pid || !contactMap[pid]) continue;
           if (!contactMap[pid].groups.includes(name)) contactMap[pid].groups.push(name);
         }
@@ -375,7 +372,7 @@
         const parts = getModels(meta.participants) ||
                       Array.from(meta.participants?.models || meta.participants || []);
         for (const p of parts) {
-          const pid = p.id?._serialized || (typeof p.id === "string" ? p.id : null);
+          const pid = parseJID(p);
           if (!pid || !contactMap[pid]) continue;
           if (!contactMap[pid].groups.includes(name)) contactMap[pid].groups.push(name);
         }
@@ -420,7 +417,7 @@
           for (let i = 0; i < models.length; i += CHUNK) {
             for (const c of models.slice(i, i + CHUNK)) {
               try {
-                const serial = c.id?._serialized || (typeof c.id === "string" ? c.id : null);
+                const serial = parseJID(c);
                 if (!serial || serial.endsWith("@g.us") || serial.includes("@broadcast")) continue;
                 const rawNum = c.id?.user || serial.split("@")[0];
                 if (!rawNum || rawNum.length < 5) continue;
